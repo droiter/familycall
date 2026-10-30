@@ -1,0 +1,5 @@
+<resources>
+    <style name="Widget.FamilyCall.DangerButton" parent="Widget.FamilyCall.PrimaryButton">
+        <item name="android:background">@drawable/bg_danger_button</item>
+    </style>
+</resources>

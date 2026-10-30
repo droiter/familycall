@@ -1,0 +1,14 @@
+<resources>
+    <color name="brand">#2F6BFF</color>
+    <color name="brand_dark">#123A9E</color>
+    <color name="accent">#15B79E</color>
+    <color name="green">#12B886</color>
+    <color name="green_dark">#0B8F68</color>
+    <color name="amber">#F59F00</color>
+    <color name="surface">#F5F7FB</color>
+    <color name="ink">#132238</color>
+    <color name="ink_muted">#5B6B82</color>
+    <color name="danger">#E5484D</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>
