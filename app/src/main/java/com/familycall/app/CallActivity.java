@@ -492,6 +492,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
     @Override
     public void onConfigurationChanged(android.content.res.Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        if (service != null) service.refreshCameraOrientation();
         lastPeerW = -1;
         lastPeerH = -1;
         lastPeerRot = -1;

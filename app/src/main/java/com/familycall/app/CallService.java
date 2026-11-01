@@ -368,6 +368,10 @@ public final class CallService extends Service implements CallSession.Listener,
         emitSnapshot();
     }
 
+    public void refreshCameraOrientation() {
+        if (session != null) session.refreshCameraOrientation();
+    }
+
     public void attachPreview(String callId, android.graphics.SurfaceTexture texture) {
         CallSession s = session;
         if (s != null && s.getCallId().equals(callId)) s.attachPreview(texture);

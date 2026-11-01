@@ -7,6 +7,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Base64;
 import android.util.Log;
 import android.view.Surface;
 
@@ -68,7 +69,9 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
     private volatile int localWidth = 640;
     private volatile int localHeight = 480;
     private volatile int cameraRotation;
+    private volatile int cameraStreamRotation;
     private volatile boolean cameraMirror;
+    private volatile boolean tcpMediaRequested;
     private volatile boolean muted;
     private volatile boolean speakerOn;
     private volatile boolean front = true;
@@ -346,7 +349,7 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
             accept.put("mediaPort", localPort);
             accept.put("listenPort", localPort);
             accept.put("resume", false);
-            accept.put("rot", cameraRotation);
+            accept.put("rot", cameraStreamRotation);
             accept.put("mirror", false);
             boolean sent = control.send(accept);
             Log.d(TAG, "answer accept queued=" + sent);
@@ -427,8 +430,9 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
             }
             media.setMuted(muted);
             media.setSpeaker(speakerOn);
+            if (tcpMediaRequested) media.enableTcpMode();
             media.requestKeyFrame();
-            Log.i(TAG, "media started");
+            Log.i(TAG, "media started" + (tcpMediaRequested ? " (tcp)" : ""));
         } catch (Exception e) {
             Log.e(TAG, "start media", e);
             finish(CallSnapshot.Stage.FAILED, "无法启动媒体传输");
@@ -536,6 +540,12 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
                 peerRotation = ((message.optInt("rot", 0) % 360) + 360) % 360;
                 peerMirror = message.optBoolean("mirror", false);
                 listener.onSessionPeerVideo(this, peerRotation, peerMirror);
+                break;
+            case "tcpMedia":
+                enableTcpMedia();
+                break;
+            case "m":
+                handleTcpMedia(message);
                 break;
             default:
                 break;
@@ -667,7 +677,7 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
         accept.put("mediaPort", localPort);
         accept.put("listenPort", localPort);
         accept.put("resume", true);
-        accept.put("rot", cameraRotation);
+        accept.put("rot", cameraStreamRotation);
         accept.put("mirror", false);
         control.send(accept);
         reconnecting = false;
@@ -686,13 +696,77 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
     }
 
     @Override
-    public void onPeerVideoInfo(int rotation, boolean mirror) {
-        cameraRotation = rotation;
+    public void onPeerVideoInfo(int previewRotation, int streamRotation, boolean mirror) {
+        cameraRotation = ((previewRotation % 360) + 360) % 360;
+        cameraStreamRotation = ((streamRotation % 360) + 360) % 360;
         cameraMirror = mirror;
         listener.onSessionPeerVideo(this, peerRotation, peerMirror);
-        // Rotation in the wire message describes the sender's raw stream; the
-        // receiver needs that rotation to render it upright.
-        sendVideoInfo(rotation, false);
+        // The stream rotation describes the sender's raw, non-mirrored stream.
+        sendVideoInfo(cameraStreamRotation, false);
+    }
+
+    @Override
+    public void onTcpMediaPacket(byte[] packet) {
+        if (ended.get() || control == null || packet == null) return;
+        try {
+            JSONObject o = new JSONObject();
+            o.put("t", "m");
+            o.put("callId", callId);
+            o.put("d", Base64.encodeToString(packet, Base64.NO_WRAP));
+            control.send(o);
+        } catch (Exception e) {
+            Log.w(TAG, "encode tcp media failed", e);
+        }
+    }
+
+    @Override
+    public void onTcpFallbackNeeded() {
+        main.post(() -> {
+            if (ended.get() || tcpMediaRequested) return;
+            requestTcpMedia();
+        });
+    }
+
+    private void requestTcpMedia() {
+        if (ended.get() || tcpMediaRequested) return;
+        tcpMediaRequested = true;
+        if (control == null) return;
+        try {
+            JSONObject o = new JSONObject();
+            o.put("t", "tcpMedia");
+            o.put("callId", callId);
+            control.send(o);
+        } catch (Exception ignored) {
+        }
+        if (media != null) media.enableTcpMode();
+        setStage(CallSnapshot.Stage.ACTIVE, "已切换备用通道");
+    }
+
+    private void enableTcpMedia() {
+        tcpMediaRequested = true;
+        if (media != null) media.enableTcpMode();
+        if (stage == CallSnapshot.Stage.ACTIVE) {
+            setStage(CallSnapshot.Stage.ACTIVE, "已切换备用通道");
+        }
+    }
+
+    private void handleTcpMedia(JSONObject message) {
+        if (media == null) return;
+        if (!tcpMediaRequested) {
+            tcpMediaRequested = true;
+            media.enableTcpMode();
+        }
+        try {
+            String data = message.optString("d", "");
+            if (data.isEmpty() || data.length() > 64 * 1024) return;
+            media.acceptTcpPacket(Base64.decode(data, Base64.NO_WRAP));
+        } catch (Exception e) {
+            Log.w(TAG, "decode tcp media failed", e);
+        }
+    }
+
+    public void refreshCameraOrientation() {
+        if (media != null) media.refreshCameraOrientation();
     }
 
     private void sendVideoInfo(int rotation, boolean mirror) {

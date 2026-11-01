@@ -1,7 +1,6 @@
 package com.familycall.app.media;
 
 import android.content.Context;
-import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -12,6 +11,7 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.view.Display;
 import android.util.Log;
 import android.util.Range;
 import android.view.Surface;
@@ -25,7 +25,14 @@ public final class CameraController {
     private static final String TAG = "CameraController";
 
     public interface Listener {
-        void onCameraReady(int sensorOrientation, boolean front, int rotation, boolean mirror);
+        /**
+         * @param previewRotation rotation for the local preview (front camera
+         *                        already mirror-compensated)
+         * @param streamRotation  rotation to send to the peer for the raw
+         *                        (non-mirrored) stream
+         * @param mirror          whether the local preview should be mirrored
+         */
+        void onCameraReady(int previewRotation, int streamRotation, boolean mirror);
 
         void onCameraError(String message);
     }
@@ -255,10 +262,58 @@ public final class CameraController {
             }
             session.setRepeatingRequest(b.build(), null, handler);
             running = true;
-            listener.onCameraReady(sensorOrientation, front, sensorOrientation % 360, mirror);
+            notifyOrientation();
         } catch (Exception e) {
             Log.e(TAG, "start preview", e);
             listener.onCameraError("摄像头预览失败");
+        }
+    }
+
+    /** Recompute and re-publish rotation after a display rotation change. */
+    public void refreshOrientation() {
+        if (handler == null) return;
+        handler.post(() -> {
+            if (running) notifyOrientation();
+        });
+    }
+
+    private void notifyOrientation() {
+        int displayRotation = displayRotationDegrees();
+        int previewRotation;
+        int streamRotation;
+        if (front) {
+            int base = (sensorOrientation + displayRotation) % 360;
+            previewRotation = (360 - base) % 360;
+            streamRotation = base;
+        } else {
+            previewRotation = (sensorOrientation - displayRotation + 360) % 360;
+            streamRotation = previewRotation;
+        }
+        mirror = front;
+        Log.i(TAG, "orientation display=" + displayRotation + " sensor=" + sensorOrientation
+                + " front=" + front + " preview=" + previewRotation + " stream=" + streamRotation);
+        listener.onCameraReady(previewRotation, streamRotation, mirror);
+    }
+
+    private int displayRotationDegrees() {
+        try {
+            android.hardware.display.DisplayManager dm =
+                    (android.hardware.display.DisplayManager)
+                            context.getSystemService(Context.DISPLAY_SERVICE);
+            Display display = dm == null ? null : dm.getDisplay(Display.DEFAULT_DISPLAY);
+            if (display == null) return 0;
+            switch (display.getRotation()) {
+                case Surface.ROTATION_90:
+                    return 90;
+                case Surface.ROTATION_180:
+                    return 180;
+                case Surface.ROTATION_270:
+                    return 270;
+                default:
+                    return 0;
+            }
+        } catch (Exception e) {
+            return 0;
         }
     }
 

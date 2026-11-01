@@ -46,9 +46,15 @@ public final class MediaEngine {
     public interface Listener {
         void onStats(CallStats stats);
 
-        void onPeerVideoInfo(int rotation, boolean mirror);
+        void onPeerVideoInfo(int previewRotation, int streamRotation, boolean mirror);
 
         void onPeerVideoSize(int width, int height);
+
+        /** Called for every media packet when the TCP fallback is active. */
+        void onTcpMediaPacket(byte[] packet);
+
+        /** No real UDP media arrived; ask the session to enable TCP media. */
+        void onTcpFallbackNeeded();
 
         void onMediaError(String message, boolean fatal);
 
@@ -82,6 +88,10 @@ public final class MediaEngine {
     private PowerManager.WakeLock wakeLock;
 
     private volatile boolean running;
+    private volatile boolean tcpMode;
+    private boolean fallbackRequested;
+    private volatile boolean tcpReceivedLogged;
+    private volatile long lastRealMediaAtMs;
     private boolean videoStarted;
     private SurfaceTexture previewTexture;
     private Surface remoteSurface;
@@ -176,6 +186,9 @@ public final class MediaEngine {
             return false;
         }
         running = true;
+        tcpMode = false;
+        fallbackRequested = false;
+        lastRealMediaAtMs = 0;
         lastMediaAtMs = System.currentTimeMillis();
         videoDeadlineMs = System.currentTimeMillis() + 900;
         acquireWakeLock();
@@ -189,7 +202,42 @@ public final class MediaEngine {
         } else {
             main.postDelayed(() -> maybeStartVideo(false), 900);
         }
+        main.postDelayed(this::checkTcpFallback, 5000);
         return true;
+    }
+
+    private void checkTcpFallback() {
+        if (!running || tcpMode || fallbackRequested) return;
+        long age = lastRealMediaAtMs == 0 ? Long.MAX_VALUE
+                : System.currentTimeMillis() - lastRealMediaAtMs;
+        if (age > 2500) {
+            fallbackRequested = true;
+            Log.w(TAG, "no UDP media received, requesting TCP fallback");
+            listener.onTcpFallbackNeeded();
+        }
+    }
+
+    public void enableTcpMode() {
+        if (tcpMode) return;
+        tcpMode = true;
+        fallbackRequested = true;
+        int target = Math.min(320, abr.getMaxKbps());
+        abr.force(target);
+        if (encoder != null) encoder.setBitrate(target);
+        Log.i(TAG, "TCP media fallback enabled targetKbps=" + target);
+    }
+
+    public void acceptTcpPacket(byte[] data) {
+        if (!running || data == null) return;
+        MediaPacket p = MediaPacket.parse(data, data.length);
+        if (p == null || p.streamId != streamId) return;
+        if (p.type == Protocol.TYPE_VIDEO || p.type == Protocol.TYPE_AUDIO) {
+            if (!tcpReceivedLogged) {
+                tcpReceivedLogged = true;
+                Log.i(TAG, "first media packet received over TCP fallback type=" + p.type);
+            }
+        }
+        handlePacket(p);
     }
 
     private void acquireWakeLock() {
@@ -281,13 +329,6 @@ public final class MediaEngine {
                     long nowMs = System.currentTimeMillis();
                     MediaPacket p = MediaPacket.parse(dp.getData(), dp.getLength());
                     if (p == null || p.streamId != streamId) continue;
-                    if (p.type == Protocol.TYPE_VIDEO || p.type == Protocol.TYPE_AUDIO) {
-                        lastMediaAtMs = nowMs;
-                        if (firstMediaNotifiedMs == 0) {
-                            firstMediaNotifiedMs = nowMs;
-                            main.post(listener::onFirstMediaReceived);
-                        }
-                    }
                     InetSocketAddress src = new InetSocketAddress(dp.getAddress(), dp.getPort());
                     if (peer == null || !src.equals(peer)) {
                         // Accept a moved peer (NAT rebinding / network change).
@@ -312,6 +353,15 @@ public final class MediaEngine {
     }
 
     private void handlePacket(MediaPacket p) {
+        if (p.type == Protocol.TYPE_VIDEO || p.type == Protocol.TYPE_AUDIO) {
+            long now = System.currentTimeMillis();
+            lastMediaAtMs = now;
+            lastRealMediaAtMs = now;
+            if (firstMediaNotifiedMs == 0) {
+                firstMediaNotifiedMs = now;
+                main.post(listener::onFirstMediaReceived);
+            }
+        }
         switch (p.type) {
             case Protocol.TYPE_VIDEO:
                 handleVideoPacket(p);
@@ -459,13 +509,13 @@ public final class MediaEngine {
         int total = f.videoReceived + f.videoLost;
         float loss = total <= 0 ? 0 : f.videoLost * 100f / total;
         long now = System.currentTimeMillis();
-        if (abr.update(loss, f.rxVideoKbps, now) && encoder != null) {
+        if (!tcpMode && abr.update(loss, f.rxVideoKbps, now) && encoder != null) {
             encoder.setBitrate(abr.getTargetKbps());
         }
         if ((f.flags & Protocol.FEEDBACK_KEYFRAME) != 0 && encoder != null) {
             encoder.requestKeyFrame();
         }
-        if (f.jitterMs > 300) {
+        if (!tcpMode && f.jitterMs > 300) {
             int reduced = Math.max(220, abr.getTargetKbps() * 85 / 100);
             abr.force(reduced);
             if (encoder != null) encoder.setBitrate(reduced);
@@ -530,10 +580,11 @@ public final class MediaEngine {
         try {
             camera = new CameraController(context, width, height, new CameraController.Listener() {
                 @Override
-                public void onCameraReady(int sensorOrientation, boolean front, int rotation, boolean mirror) {
-                    streamRotation = ((rotation % 360) + 360) % 360;
-                    streamMirror = mirror;
-                    listener.onPeerVideoInfo(streamRotation, streamMirror);
+                public void onCameraReady(int previewRotation, int streamRotation, boolean mirror) {
+                    MediaEngine.this.streamRotation = ((streamRotation % 360) + 360) % 360;
+                    MediaEngine.this.streamMirror = mirror;
+                    listener.onPeerVideoInfo(((previewRotation % 360) + 360) % 360,
+                            MediaEngine.this.streamRotation, mirror);
                 }
 
                 @Override
@@ -633,6 +684,15 @@ public final class MediaEngine {
             LockSupport.parkNanos(wait);
         }
         nextSendNanos = Math.max(nextSendNanos, System.nanoTime()) + packetNs;
+        sendRaw(packet);
+    }
+
+    private void sendRaw(byte[] packet) {
+        if (!running) return;
+        if (tcpMode) {
+            listener.onTcpMediaPacket(packet);
+            return;
+        }
         synchronized (sendLock) {
             udp.send(packet, packet.length);
         }
@@ -648,9 +708,7 @@ public final class MediaEngine {
         byte[] packet = MediaPacket.build(Protocol.TYPE_AUDIO,
                 (byte) (Protocol.FLAG_START | Protocol.FLAG_END), streamId,
                 audioSeq.incrementAndGet(), audioSeq.get(), ts, 0, 1, aac, 0, aac.length);
-        synchronized (sendLock) {
-            udp.send(packet, packet.length);
-        }
+        sendRaw(packet);
     }
 
     private void sendAudioConfig() {
@@ -662,18 +720,14 @@ public final class MediaEngine {
                 (byte) (Protocol.FLAG_CONFIG | Protocol.FLAG_START | Protocol.FLAG_END),
                 streamId, audioSeq.incrementAndGet(), audioSeq.get(), 0, 0, 1,
                 payload, 0, payload.length);
-        synchronized (sendLock) {
-            udp.send(packet, packet.length);
-        }
+        sendRaw(packet);
     }
 
     private void sendBye() {
         try {
             byte[] p = MediaPacket.build(Protocol.TYPE_BYE, (byte) 0, streamId, 0, 0, 0,
                     0, 0, new byte[0], 0, 0);
-            synchronized (sendLock) {
-                udp.send(p, p.length);
-            }
+            sendRaw(p);
         } catch (Exception ignored) {
         }
     }
@@ -707,15 +761,11 @@ public final class MediaEngine {
         byte[] fb = MediaPacket.feedback(streamId, lastVideoSeq, videoPacketsWindow,
                 videoLostWindow, audioSeq.get(), 0, 0,
                 videoRxKbps, audioRxKbps, 0, flags);
-        synchronized (sendLock) {
-            udp.send(fb, fb.length);
-        }
+        sendRaw(fb);
         if (probe) {
             byte[] p = MediaPacket.build(Protocol.TYPE_PROBE, (byte) 0, streamId, 0, 0, 0,
                     0, 0, new byte[0], 0, 0);
-            synchronized (sendLock) {
-                udp.send(p, p.length);
-            }
+            sendRaw(p);
         }
     }
 
@@ -826,6 +876,10 @@ public final class MediaEngine {
 
     public void switchCamera() {
         if (camera != null) camera.switchCamera();
+    }
+
+    public void refreshCameraOrientation() {
+        if (camera != null) camera.refreshOrientation();
     }
 
     public boolean isFrontCamera() {

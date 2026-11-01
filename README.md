@@ -2,7 +2,7 @@
 
 一款 Android 端、**不依赖服务器**的点对点视频通话应用。双方各自配置本机端口和对方 IP/端口后即可直接呼叫，适合家庭局域网、已做端口映射的公网 IP、IPv6 或 VPN 组网。
 
-> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.1.apk`。
+> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.2.apk`。
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 需求 | 实现 |
 |---|---|
-| 移动网络下工作，考虑延迟/带宽/网络变化/信号中断 | 自定义 UDP 媒体通道、H.264/AAC 硬件编解码、分片重组、抖动缓冲、自适应码率、发送整形、丢包后请求关键帧、网络切换自动重绑 UDP、TCP 控制通道断线重连、60 秒媒体看门狗、通话中 WakeLock |
+| 移动网络下工作，考虑延迟/带宽/网络变化/信号中断 | 自定义 UDP 媒体通道、H.264/AAC 硬件编解码、分片重组、抖动缓冲、自适应码率、发送整形、丢包后请求关键帧、网络切换自动重绑 UDP、UDP 不通时自动切换 TCP 媒体备用通道、TCP 控制通道断线重连、60 秒媒体看门狗、通话中 WakeLock |
 | 配置通讯对象：名字、IP、端口 | 首页「添加」/联系人编辑弹窗；支持 IPv4、IPv6、域名 |
 | 配置本端端口 | 设置页「本机端口（TCP + UDP）」，保存后自动重新监听 |
 | 配置本机名字，接听者显示对方名字 | 设置页「本机名字」；呼叫时随 HELLO 发送，接听页显示 |
@@ -26,7 +26,7 @@
 ### 安装
 
 ```bash
-adb install -r dist/FamilyCall-1.0.1.apk
+adb install -r dist/FamilyCall-1.0.2.apk
 ```
 
 或把 APK 发送到手机点击安装（需允许“安装未知来源应用”）。
@@ -82,7 +82,7 @@ GRADLE_USER_HOME=/workspace/termux/.gradle-home \
 输出：
 - `app/build/outputs/apk/debug/app-debug.apk`
 - `app/build/outputs/apk/release/app-release.apk`
-- `dist/FamilyCall-1.0.1.apk`（release 复制件）
+- `dist/FamilyCall-1.0.2.apk`（release 复制件）
 
 > Release 演示包使用 Android 默认 debug keystore 签名，仅用于安装测试。正式发布请替换为自己的 keystore。
 
@@ -222,7 +222,7 @@ docs/ARCHITECTURE.md               更详细的实现说明
 
 ## 10. 修复记录
 
-- **v1.0.1**
+- **v1.0.2**
   - 修复接听时在主线程向 TCP 控制连接写 `ACCEPT` 导致 `NetworkOnMainThreadException`、随后显示“接听失败”的问题；所有控制信令改为专用写线程异步发送。
   - 接听后的媒体初始化移到后台线程，避免主线程创建 UDP/音频资源造成卡顿。
   - 通知栏“接听”按钮改为 Activity PendingIntent + 自动接听，避免 App 在后台时被 Android 后台启动限制拦截，确保接听后能打开全屏通话页。
