@@ -716,6 +716,7 @@ public final class CallService extends Service implements CallSession.Listener,
                 .setFullScreenIntent(fullPi, true)
                 .setCategory(Notification.CATEGORY_CALL)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setPriority(Notification.PRIORITY_MAX)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .addAction(new Notification.Action.Builder(

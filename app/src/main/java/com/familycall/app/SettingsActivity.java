@@ -6,8 +6,11 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -35,6 +38,8 @@ public class SettingsActivity extends Activity {
     private TextView addressText;
     private TextView serviceText;
     private TextView networkText;
+    private LinearLayout fsiCard;
+    private TextView fsiStatus;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -67,7 +72,10 @@ public class SettingsActivity extends Activity {
         addressText = findViewById(R.id.addressText);
         serviceText = findViewById(R.id.serviceText);
         networkText = findViewById(R.id.networkText);
+        fsiCard = findViewById(R.id.fsiCard);
+        fsiStatus = findViewById(R.id.fsiStatus);
         ((TextView) findViewById(R.id.versionText)).setText("亲情视频 v" + BuildConfig.VERSION_NAME);
+        findViewById(R.id.fsiButton).setOnClickListener(v -> UiUtils.openFullScreenIntentSettings(this));
 
         nameInput.setText(prefs.getName());
         portInput.setText(String.valueOf(prefs.getLocalPort()));
@@ -81,6 +89,7 @@ public class SettingsActivity extends Activity {
             qualityAuto.setChecked(true);
         }
         renderAddress();
+        renderFsi();
 
         findViewById(R.id.backButton).setOnClickListener(v -> finish());
         findViewById(R.id.saveButton).setOnClickListener(v -> saveAndFinish());
@@ -93,6 +102,23 @@ public class SettingsActivity extends Activity {
         });
 
         bindService(new Intent(this, CallService.class), connection, Context.BIND_AUTO_CREATE);
+    }
+
+    private void renderFsi() {
+        if (Build.VERSION.SDK_INT < 34) {
+            fsiCard.setVisibility(View.GONE);
+            return;
+        }
+        fsiCard.setVisibility(View.VISIBLE);
+        boolean allowed = UiUtils.canUseFullScreenIntent(this);
+        fsiStatus.setText(allowed ? R.string.fsi_enabled : R.string.fsi_disabled);
+        fsiStatus.setTextColor(getColor(allowed ? R.color.green_dark : R.color.danger));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        renderFsi();
     }
 
     private void renderAddress() {

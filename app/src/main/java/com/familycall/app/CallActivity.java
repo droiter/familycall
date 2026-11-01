@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.Surface;
@@ -36,6 +37,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
     private boolean endingScheduled;
     private boolean statsVisible;
     private Prefs prefs;
+    private PowerManager.WakeLock wakeLock;
     private int lastPeerW = -1, lastPeerH = -1, lastPeerRot = -1;
     private boolean lastPeerMirror;
     private int lastLocalW = -1, lastLocalH = -1;
@@ -116,6 +118,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
             setTurnScreenOn(true);
         }
         setContentView(R.layout.activity_call);
+        acquireWake();
         remoteVideo = findViewById(R.id.remoteVideo);
         localVideo = findViewById(R.id.localVideo);
         remoteContainer = findViewById(R.id.remoteContainer);
@@ -149,6 +152,31 @@ public class CallActivity extends Activity implements CallService.UiListener {
                 finish();
             }
         }, 5000);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void acquireWake() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null) {
+                wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK
+                        | PowerManager.ACQUIRE_CAUSES_WAKEUP
+                        | PowerManager.ON_AFTER_RELEASE, "FamilyCall:call");
+                wakeLock.setReferenceCounted(false);
+                wakeLock.acquire(10000);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void releaseWake() {
+        if (wakeLock != null) {
+            try {
+                if (wakeLock.isHeld()) wakeLock.release();
+            } catch (Exception ignored) {
+            }
+            wakeLock = null;
+        }
     }
 
     private void setupSurfaceListeners() {
@@ -421,16 +449,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
     private int effectivePreviewOffset() {
         if (snapshot == null || !snapshot.localMirror) return 0;
         int saved = prefs == null ? -1 : prefs.getPreviewOffset();
-        if (saved >= 0) return saved;
-        // Phone front cameras frequently need one extra quarter turn for the
-        // self-view even when the sensor orientation is reported correctly.
-        // Gravity still drives the base rotation; this is only a local preview
-        // correction and can be cycled by tapping the small preview.
-        return isPhone() ? 90 : 0;
-    }
-
-    private boolean isPhone() {
-        return getResources().getConfiguration().smallestScreenWidthDp < 600;
+        return saved >= 0 ? saved : 0;
     }
 
     private void rotateLocalPreview() {
@@ -539,6 +558,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
 
     @Override
     protected void onDestroy() {
+        releaseWake();
         main.removeCallbacksAndMessages(null);
         if (bound) {
             if (service != null) {

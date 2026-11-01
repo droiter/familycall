@@ -21,6 +21,7 @@ public final class Prefs {
     private static final String KEY_CONTACTS = "contacts";
     private static final String KEY_SPEAKER = "speaker";
     private static final String KEY_PREVIEW_OFFSET = "preview_offset";
+    private static final String KEY_FSI_PROMPTED = "fsi_prompted";
 
     public static final int QUALITY_AUTO = 0;
     public static final int QUALITY_SMOOTH = 1;
@@ -93,6 +94,14 @@ public final class Prefs {
 
     public void setPreviewOffset(int degrees) {
         sp.edit().putInt(KEY_PREVIEW_OFFSET, ((degrees % 360) + 360) % 360).apply();
+    }
+
+    public boolean isFullScreenPromptShown() {
+        return sp.getBoolean(KEY_FSI_PROMPTED, false);
+    }
+
+    public void setFullScreenPromptShown(boolean shown) {
+        sp.edit().putBoolean(KEY_FSI_PROMPTED, shown).apply();
     }
 
     public List<Contact> getContacts() {

@@ -101,3 +101,10 @@ MAX_PAYLOAD = 1150，加头后 1179 字节，低于常见 1500 MTU。
 - 通知：儿童模式进行中的通话通知不添加挂断 Action。
 - 仅允许在 `DIALING`（尚未接通）时显示“取消呼叫”，接通后全部按键消失。
 - 家长设置入口需要 PIN；PIN 默认值 `1234`，应用提示用户修改。
+
+## 8. 锁屏来电
+
+- `CallService` 是高优先级前台服务，锁屏时仍能收到 TCP 来电。
+- 来电通知使用 `CATEGORY_CALL`、高重要性和 `fullScreenIntent`；Android 14+ 需要用户在系统设置中允许“全屏通知”，应用首次启动会引导，设置页也可再次打开。
+- `IncomingCallActivity`：`showWhenLocked`、`turnScreenOn`、`FLAG_KEEP_SCREEN_ON`，并持有短时 `FULL_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP`，确保锁屏/息屏时能显示接听按钮。
+- 通知“接听”是 Activity PendingIntent（不是 Service action），点击后在可见的 IncomingCallActivity 中自动接听，再启动 `CallActivity`；后者同样 `showWhenLocked`，因此接听后视频界面覆盖锁屏。

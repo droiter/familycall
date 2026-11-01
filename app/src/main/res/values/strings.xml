@@ -90,4 +90,13 @@
     <string name="service_notif_call">与 %1$s 视频通话中</string>
     <string name="stop_listening">停止监听</string>
     <string name="not_available">暂不可用</string>
+    <string name="fsi_title">允许锁屏全屏来电</string>
+    <string name="fsi_message">为了在锁屏或息屏时自动弹出接听页面，请在系统设置中允许“亲情视频”使用全屏通知。</string>
+    <string name="fsi_allow">去允许</string>
+    <string name="fsi_later">稍后</string>
+    <string name="fsi_card_title">锁屏全屏来电</string>
+    <string name="fsi_enabled">已允许，锁屏时会显示接听页面</string>
+    <string name="fsi_disabled">未允许，锁屏时可能只显示通知</string>
+    <string name="fsi_unsupported">当前 Android 版本无需单独授权</string>
+    <string name="fsi_open_settings">打开系统设置</string>
 </resources>

@@ -8,6 +8,7 @@ import android.content.ServiceConnection;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
@@ -31,6 +32,7 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
     private TextView childBadge;
     private ImageButton answerButton;
     private ImageButton declineButton;
+    private PowerManager.WakeLock wakeLock;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -71,6 +73,7 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
         }
         autoAnswer = getIntent().getBooleanExtra(EXTRA_AUTO_ANSWER, false);
         setContentView(R.layout.activity_incoming);
+        acquireWake();
         nameView = findViewById(R.id.name);
         avatarView = findViewById(R.id.avatar);
         childBadge = findViewById(R.id.childBadge);
@@ -80,6 +83,31 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
         declineButton.setOnClickListener(v -> decline());
         applyImmersive();
         bindService(new Intent(this, CallService.class), connection, Context.BIND_AUTO_CREATE);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void acquireWake() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null) {
+                wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK
+                        | PowerManager.ACQUIRE_CAUSES_WAKEUP
+                        | PowerManager.ON_AFTER_RELEASE, "FamilyCall:incoming");
+                wakeLock.setReferenceCounted(false);
+                wakeLock.acquire(15000);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void releaseWake() {
+        if (wakeLock != null) {
+            try {
+                if (wakeLock.isHeld()) wakeLock.release();
+            } catch (Exception ignored) {
+            }
+            wakeLock = null;
+        }
     }
 
     private void applyImmersive() {
@@ -147,6 +175,7 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
 
     @Override
     protected void onDestroy() {
+        releaseWake();
         if (bound) {
             if (service != null) service.removeUiListener(this);
             try {

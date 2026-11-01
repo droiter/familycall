@@ -285,19 +285,22 @@ public final class CameraController {
     }
 
     private void notifyOrientation() {
-        int displayRotation = displayRotationDegrees();
+        int device = displayRotationDegrees();
         int previewRotation;
         int streamRotation;
         if (front) {
-            int base = (sensorOrientation + displayRotation) % 360;
-            previewRotation = (360 - base) % 360;
-            streamRotation = base;
+            // TextureView/Camera2 already applies the sensor orientation to the
+            // local preview. Only compensate the remaining device rotation.
+            previewRotation = (360 - device) % 360;
+            // The encoded stream is the raw sensor buffer, so the receiver needs
+            // sensor orientation plus device rotation.
+            streamRotation = (sensorOrientation + device) % 360;
         } else {
-            previewRotation = (sensorOrientation - displayRotation + 360) % 360;
-            streamRotation = previewRotation;
+            previewRotation = device;
+            streamRotation = (sensorOrientation - device + 360) % 360;
         }
         mirror = front;
-        Log.i(TAG, "orientation device=" + displayRotation + " gravity=" + gravityRotation
+        Log.i(TAG, "orientation device=" + device + " gravity=" + gravityRotation
                 + " sensor=" + sensorOrientation + " front=" + front
                 + " preview=" + previewRotation + " stream=" + streamRotation);
         listener.onCameraReady(previewRotation, streamRotation, mirror);

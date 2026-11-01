@@ -2,7 +2,7 @@
 
 一款 Android 端、**不依赖服务器**的点对点视频通话应用。双方各自配置本机端口和对方 IP/端口后即可直接呼叫，适合家庭局域网、已做端口映射的公网 IP、IPv6 或 VPN 组网。
 
-> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.4.apk`。
+> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.5.apk`。
 
 ---
 
@@ -17,7 +17,7 @@
 | 儿童模式：来电显示接听按钮，接听后全屏视频，无其他按键，不能挂机 | 儿童模式首页只显示已配置联系人；来电页显示接听；接通后隐藏所有按键/顶部栏/本机小窗，沉浸式全屏，返回键无效，通知栏不提供挂断；仅对方挂断或网络超时可结束 |
 | 儿童模式只能拨打已配置对象，无配置则无法拨打 | UI 不提供拨号盘/任意地址入口；`CallService` 再次校验联系人白名单；无联系人时直接拒绝 |
 
-另外包含：静音、扬声器/听筒、前后摄像头切换、实时通话统计、来电铃声/震动、锁屏来电、前台常驻服务、家长 PIN 保护设置。
+另外包含：静音、扬声器/听筒、前后摄像头切换、实时通话统计、来电铃声/震动、锁屏全屏来电、前台常驻服务、家长 PIN 保护设置。
 
 ---
 
@@ -26,7 +26,7 @@
 ### 安装
 
 ```bash
-adb install -r dist/FamilyCall-1.0.4.apk
+adb install -r dist/FamilyCall-1.0.5.apk
 ```
 
 或把 APK 发送到手机点击安装（需允许“安装未知来源应用”）。
@@ -82,7 +82,7 @@ GRADLE_USER_HOME=/workspace/termux/.gradle-home \
 输出：
 - `app/build/outputs/apk/debug/app-debug.apk`
 - `app/build/outputs/apk/release/app-release.apk`
-- `dist/FamilyCall-1.0.4.apk`（release 复制件）
+- `dist/FamilyCall-1.0.5.apk`（release 复制件）
 
 > Release 演示包使用 Android 默认 debug keystore 签名，仅用于安装测试。正式发布请替换为自己的 keystore。
 
@@ -222,7 +222,7 @@ docs/ARCHITECTURE.md               更详细的实现说明
 
 ## 10. 修复记录
 
-- **v1.0.4**
+- **v1.0.5**
   - 修复接听时在主线程向 TCP 控制连接写 `ACCEPT` 导致 `NetworkOnMainThreadException`、随后显示“接听失败”的问题；所有控制信令改为专用写线程异步发送。
   - 接听后的媒体初始化移到后台线程，避免主线程创建 UDP/音频资源造成卡顿。
   - 通知栏“接听”按钮改为 Activity PendingIntent + 自动接听，避免 App 在后台时被 Android 后台启动限制拦截，确保接听后能打开全屏通话页。

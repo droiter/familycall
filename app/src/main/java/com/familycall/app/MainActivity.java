@@ -84,6 +84,7 @@ public class MainActivity extends Activity implements CallService.UiListener {
         bindActions();
         ensurePermissions();
         startAndBindService();
+        maybePromptFullScreenIntent();
     }
 
     private void bindViews() {
@@ -151,6 +152,20 @@ public class MainActivity extends Activity implements CallService.UiListener {
             UiUtils.toastLong(this, "无法启动通话服务：" + e.getMessage());
         }
         bindService(new Intent(this, CallService.class), connection, Context.BIND_AUTO_CREATE);
+    }
+
+    private void maybePromptFullScreenIntent() {
+        if (Build.VERSION.SDK_INT < 34) return;
+        if (UiUtils.canUseFullScreenIntent(this)) return;
+        if (prefs.isFullScreenPromptShown()) return;
+        prefs.setFullScreenPromptShown(true);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.fsi_title)
+                .setMessage(R.string.fsi_message)
+                .setPositiveButton(R.string.fsi_allow,
+                        (d, w) -> UiUtils.openFullScreenIntentSettings(this))
+                .setNegativeButton(R.string.fsi_later, null)
+                .show();
     }
 
     private void ensurePermissions() {

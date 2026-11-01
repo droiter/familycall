@@ -2,7 +2,13 @@ package com.familycall.app.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.NotificationManager;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.text.InputType;
@@ -145,5 +151,37 @@ public final class UiUtils {
 
     public static int mixColor(int color, float alpha) {
         return Color.argb((int) (255 * alpha), Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    public static boolean canUseFullScreenIntent(Context context) {
+        if (Build.VERSION.SDK_INT < 34) return true;
+        try {
+            NotificationManager nm = (NotificationManager)
+                    context.getSystemService(Context.NOTIFICATION_SERVICE);
+            return nm != null && nm.canUseFullScreenIntent();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static void openFullScreenIntentSettings(Activity activity) {
+        Intent intent;
+        if (Build.VERSION.SDK_INT >= 34) {
+            intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                    Uri.parse("package:" + activity.getPackageName()));
+        } else {
+            intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + activity.getPackageName()));
+        }
+        try {
+            activity.startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            try {
+                activity.startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + activity.getPackageName())));
+            } catch (Exception ignored) {
+                toast(activity, "无法打开系统设置");
+            }
+        }
     }
 }
