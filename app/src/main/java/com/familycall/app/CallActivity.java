@@ -422,9 +422,10 @@ public class CallActivity extends Activity implements CallService.UiListener {
         if (snapshot == null || !snapshot.localMirror) return 0;
         int saved = prefs == null ? -1 : prefs.getPreviewOffset();
         if (saved >= 0) return saved;
-        // Some phones report a front-camera/sensor orientation that leaves the
-        // self-view 90 degrees sideways. Use a phone-only automatic +90
-        // correction; the local preview can still be tapped to cycle it.
+        // Phone front cameras frequently need one extra quarter turn for the
+        // self-view even when the sensor orientation is reported correctly.
+        // Gravity still drives the base rotation; this is only a local preview
+        // correction and can be cycled by tapping the small preview.
         return isPhone() ? 90 : 0;
     }
 

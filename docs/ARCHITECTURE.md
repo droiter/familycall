@@ -86,11 +86,12 @@ MAX_PAYLOAD = 1150，加头后 1179 字节，低于常见 1500 MTU。
 
 ## 6. 方向与镜像
 
-- 发送端只发原始 sensor 数据；旋转角按 `SENSOR_ORIENTATION` 与 `Display.getRotation()` 计算。
-- 前置摄像头区分两个角：本地预览使用镜像补偿角 `(360 - (sensor + display)) % 360` 并 `scaleX=-1`；发送给对端的原始流使用 `(sensor + display) % 360`，`mirror=false`。后置摄像头两者都使用 `(sensor - display + 360) % 360`。
+- 发送端只发原始 sensor 数据；旋转角按 Camera2 `SENSOR_ORIENTATION` 与**重力传感器**推导的物理握持方向计算。重力传感器缺失时回退到 `Display.getRotation()`。
+- `GravityOrientation` 使用 `TYPE_GRAVITY`（缺失时加速度计），按 x/y 重力分量判定 0/90/180/270，并做 350 ms 稳定性过滤，避免临界角度抖动。
+- 前置摄像头区分两个角：本地预览使用镜像补偿角 `(360 - (sensor + device)) % 360` 并 `scaleX=-1`；发送给对端的原始流使用 `(sensor + device) % 360`，`mirror=false`。后置摄像头两者都使用 `(sensor - device + 360) % 360`。
 - 接收端把 TextureView 的布局尺寸设为“原始宽高 × 覆盖缩放”，再旋转整个 View；父容器裁切。
   这样避免依赖 TextureView `setTransform` 在不同厂商上的坐标语义，也不会拉伸。
-- 显示方向改变时 `CallActivity.onConfigurationChanged` 会通知 CameraController 重新发布旋转信息。
+- 重力方向变化、屏幕方向变化都会重新发布旋转信息；通话中点击本机小窗可再手动微调 90°。
 
 ## 7. 儿童模式安全边界
 

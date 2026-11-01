@@ -43,6 +43,8 @@ public final class CameraController {
     private final Listener listener;
     private HandlerThread thread;
     private Handler handler;
+    private GravityOrientation gravityOrientation;
+    private volatile int gravityRotation = -1;
     private CameraManager manager;
     private CameraDevice device;
     private CameraCaptureSession session;
@@ -75,6 +77,11 @@ public final class CameraController {
         thread.start();
         handler = new Handler(thread.getLooper());
         manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+        gravityOrientation = new GravityOrientation(context, rotation -> {
+            gravityRotation = rotation;
+            if (handler != null) handler.post(this::notifyOrientation);
+        });
+        gravityOrientation.start();
         handler.post(this::open);
     }
 
@@ -290,28 +297,43 @@ public final class CameraController {
             streamRotation = previewRotation;
         }
         mirror = front;
-        Log.i(TAG, "orientation display=" + displayRotation + " sensor=" + sensorOrientation
-                + " front=" + front + " preview=" + previewRotation + " stream=" + streamRotation);
+        Log.i(TAG, "orientation device=" + displayRotation + " gravity=" + gravityRotation
+                + " sensor=" + sensorOrientation + " front=" + front
+                + " preview=" + previewRotation + " stream=" + streamRotation);
         listener.onCameraReady(previewRotation, streamRotation, mirror);
     }
 
     private int displayRotationDegrees() {
+        int gravity = gravityRotation;
+        if (gravity >= 0) {
+            // Physical clockwise rotation from the natural orientation. The
+            // preview formulas below are written in this convention.
+            return gravity;
+        }
         try {
             android.hardware.display.DisplayManager dm =
                     (android.hardware.display.DisplayManager)
                             context.getSystemService(Context.DISPLAY_SERVICE);
             Display display = dm == null ? null : dm.getDisplay(Display.DEFAULT_DISPLAY);
             if (display == null) return 0;
+            int displayRotation;
             switch (display.getRotation()) {
                 case Surface.ROTATION_90:
-                    return 90;
+                    displayRotation = 90;
+                    break;
                 case Surface.ROTATION_180:
-                    return 180;
+                    displayRotation = 180;
+                    break;
                 case Surface.ROTATION_270:
-                    return 270;
+                    displayRotation = 270;
+                    break;
                 default:
-                    return 0;
+                    displayRotation = 0;
+                    break;
             }
+            // Display.getRotation() is the counter-clockwise graphics rotation;
+            // convert it to the physical clockwise device rotation.
+            return (360 - displayRotation) % 360;
         } catch (Exception e) {
             return 0;
         }
@@ -341,6 +363,11 @@ public final class CameraController {
     public void stop() {
         released = true;
         running = false;
+        if (gravityOrientation != null) {
+            gravityOrientation.stop();
+            gravityOrientation = null;
+            gravityRotation = -1;
+        }
         if (handler != null) {
             handler.post(this::closeSession);
         }
