@@ -86,6 +86,7 @@ public class MainActivity extends Activity implements CallService.UiListener {
         bindActions();
         ensurePermissions();
         startAndBindService();
+        updateAlerts();
         maybePromptFullScreenIntent();
     }
 
@@ -113,6 +114,8 @@ public class MainActivity extends Activity implements CallService.UiListener {
         alertBanner.setOnClickListener(v -> {
             if (!UiUtils.notificationsEnabled(this)) {
                 UiUtils.openNotificationSettings(this);
+            } else if (UiUtils.isMiuiFamily() && !UiUtils.miuiLockscreenAllowed(this)) {
+                UiUtils.openMiuiPermissionEditor(this);
             } else {
                 UiUtils.openFullScreenIntentSettings(this);
             }
@@ -234,8 +237,15 @@ public class MainActivity extends Activity implements CallService.UiListener {
 
     private void updateAlerts() {
         if (alertBanner == null) return;
+        android.util.Log.i("MainActivity", "alerts miui=" + UiUtils.isMiuiFamily()
+                + " miuiLock=" + UiUtils.miuiLockscreenAllowed(this)
+                + " fsi=" + UiUtils.canUseFullScreenIntent(this)
+                + " notif=" + UiUtils.notificationsEnabled(this));
         if (!UiUtils.notificationsEnabled(this)) {
             alertBanner.setText(R.string.alert_notifications);
+            alertBanner.setVisibility(View.VISIBLE);
+        } else if (UiUtils.isMiuiFamily() && !UiUtils.miuiLockscreenAllowed(this)) {
+            alertBanner.setText(R.string.alert_miui);
             alertBanner.setVisibility(View.VISIBLE);
         } else if (Build.VERSION.SDK_INT >= 34 && !UiUtils.canUseFullScreenIntent(this)) {
             alertBanner.setText(R.string.alert_fsi);

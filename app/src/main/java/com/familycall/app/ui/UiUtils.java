@@ -164,6 +164,65 @@ public final class UiUtils {
         }
     }
 
+    /** Xiaomi / Redmi / POCO devices run MIUI or HyperOS with extra restrictions. */
+    public static boolean isMiuiFamily() {
+        try {
+            String m = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase(Locale.US);
+            String b = Build.BRAND == null ? "" : Build.BRAND.toLowerCase(Locale.US);
+            if (m.contains("xiaomi") || m.contains("redmi") || m.contains("poco")
+                    || b.contains("xiaomi") || b.contains("redmi") || b.contains("poco")) {
+                return true;
+            }
+            Class<?> sp = Class.forName("android.os.SystemProperties");
+            java.lang.reflect.Method get = sp.getMethod("get", String.class);
+            Object v1 = get.invoke(null, "ro.miui.ui.version.name");
+            Object v2 = get.invoke(null, "ro.mi.os.version.name");
+            return (v1 instanceof String && !((String) v1).isEmpty())
+                    || (v2 instanceof String && !((String) v2).isEmpty());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * MIUI/HyperOS gate "show over lock screen" behind its own permission, stored
+     * as a MIUI app-op (10020) next to the AOSP ones. Reading it is possible via
+     * the hidden-but-unsupported AppOpsManager#checkOpNoThrow(int, int, String).
+     * Returns true when unknown so that no warning is shown on false negatives.
+     */
+    public static boolean miuiLockscreenAllowed(Context context) {
+        if (!isMiuiFamily()) return true;
+        try {
+            android.app.AppOpsManager aom = (android.app.AppOpsManager)
+                    context.getSystemService(Context.APP_OPS_SERVICE);
+            if (aom == null) return true;
+            java.lang.reflect.Method m = android.app.AppOpsManager.class.getMethod(
+                    "checkOpNoThrow", int.class, int.class, String.class);
+            Object mode = m.invoke(aom, 10020,
+                    context.getApplicationInfo().uid, context.getPackageName());
+            android.util.Log.i("UiUtils", "MIUI op10020 mode=" + mode);
+            return (Integer) mode == android.app.AppOpsManager.MODE_ALLOWED;
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+
+    /** Opens the MIUI/HyperOS app permission page where "锁屏显示" lives. */
+    public static void openMiuiPermissionEditor(Activity activity) {
+        Intent intent = new Intent("miui.intent.action.APP_PERM_EDITOR");
+        intent.setPackage("com.miui.securitycenter");
+        intent.putExtra("extra_pkgname", activity.getPackageName());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            if (intent.resolveActivity(activity.getPackageManager()) != null) {
+                activity.startActivity(intent);
+                return;
+            }
+        } catch (Exception ignored) {
+        }
+        openFullScreenIntentSettings(activity);
+    }
+
     public static boolean notificationsEnabled(Context context) {
         try {
             NotificationManager nm = (NotificationManager)

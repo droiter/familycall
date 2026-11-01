@@ -41,6 +41,8 @@ public class SettingsActivity extends Activity {
     private LinearLayout fsiCard;
     private TextView fsiStatus;
     private android.widget.Button fsiButton;
+    private LinearLayout miuiCard;
+    private TextView miuiStatus;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -76,6 +78,9 @@ public class SettingsActivity extends Activity {
         fsiCard = findViewById(R.id.fsiCard);
         fsiStatus = findViewById(R.id.fsiStatus);
         fsiButton = findViewById(R.id.fsiButton);
+        miuiCard = findViewById(R.id.miuiCard);
+        miuiStatus = findViewById(R.id.miuiStatus);
+        findViewById(R.id.miuiButton).setOnClickListener(v -> UiUtils.openMiuiPermissionEditor(this));
         ((TextView) findViewById(R.id.versionText)).setText("亲情视频 v" + BuildConfig.VERSION_NAME);
 
         nameInput.setText(prefs.getName());
@@ -105,6 +110,17 @@ public class SettingsActivity extends Activity {
         bindService(new Intent(this, CallService.class), connection, Context.BIND_AUTO_CREATE);
     }
 
+    private void renderMiui() {
+        if (!UiUtils.isMiuiFamily()) {
+            miuiCard.setVisibility(View.GONE);
+            return;
+        }
+        miuiCard.setVisibility(View.VISIBLE);
+        boolean allowed = UiUtils.miuiLockscreenAllowed(this);
+        miuiStatus.setText(allowed ? R.string.miui_status_on : R.string.miui_status_off);
+        miuiStatus.setTextColor(getColor(allowed ? R.color.green_dark : R.color.danger));
+    }
+
     private void renderFsi() {
         boolean notif = UiUtils.notificationsEnabled(this);
         if (Build.VERSION.SDK_INT < 34 && notif) {
@@ -128,6 +144,7 @@ public class SettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         renderFsi();
+        renderMiui();
     }
 
     private void renderAddress() {

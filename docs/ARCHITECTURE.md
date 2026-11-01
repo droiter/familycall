@@ -108,4 +108,5 @@ MAX_PAYLOAD = 1150，加头后 1179 字节，低于常见 1500 MTU。
 - 来电通知使用 `CATEGORY_CALL`、高重要性和 `fullScreenIntent`；Android 12+ 使用 `Notification.CallStyle.forIncomingCall(...).setIsVideo(true)`，折叠状态/锁屏上直接显示接听与拒接按钮，并带上 `android.callType`/`android.callIsVideo` 标记。
 - Android 14+ 需要用户在系统设置中允许“全屏通知”才能自动弹出接听页；未授权时服务会申请短时 `FULL_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP` 点亮屏幕，让锁屏上的 CallStyle 通知可直接接听。应用首页红条和设置页状态卡都会提示并跳转授权。
 - `IncomingCallActivity`：`showWhenLocked`、`turnScreenOn`、`FLAG_KEEP_SCREEN_ON`，并持有短时 `FULL_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP`，确保锁屏/息屏时能显示接听按钮。
+- 小米/红米 HyperOS 额外拦截：没有 MIUI“锁屏显示”权限时，系统日志为 `MIUILOG- Show when locked PermissionDenied`，`showWhenLocked` 界面会被立即销毁。应用通过反射读取 MIUI app-op `10020` 检测该权限（`UiUtils.miuiLockscreenAllowed`），未开启时首页红条与设置卡片会引导用户到 MIUI 权限页（`miui.intent.action.APP_PERM_EDITOR`），需同时开启“后台弹出界面”。
 - 通知“接听”是 Activity PendingIntent（不是 Service action），点击后在可见的 IncomingCallActivity 中自动接听，再启动 `CallActivity`；后者同样 `showWhenLocked`，因此接听后视频界面覆盖锁屏。
