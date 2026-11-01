@@ -19,8 +19,12 @@ import com.familycall.app.data.Prefs;
 import com.familycall.app.ui.UiUtils;
 
 public class IncomingCallActivity extends Activity implements CallService.UiListener {
+    public static final String EXTRA_AUTO_ANSWER = "auto_answer";
+
     private CallService service;
     private boolean bound;
+    private boolean answered;
+    private boolean autoAnswer;
     private CallInfo info;
     private TextView nameView;
     private TextView avatarView;
@@ -43,6 +47,7 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
                 }
             }
             render();
+            if (autoAnswer) answer();
         }
 
         @Override
@@ -64,6 +69,7 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
             setShowWhenLocked(true);
             setTurnScreenOn(true);
         }
+        autoAnswer = getIntent().getBooleanExtra(EXTRA_AUTO_ANSWER, false);
         setContentView(R.layout.activity_incoming);
         nameView = findViewById(R.id.name);
         avatarView = findViewById(R.id.avatar);
@@ -99,9 +105,12 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
     }
 
     private void answer() {
+        if (answered) return;
         if (service != null && service.answer()) {
+            answered = true;
             finish();
         } else {
+            autoAnswer = false;
             UiUtils.toastLong(this, "请先授予摄像头和麦克风权限，然后接听");
         }
     }
@@ -127,9 +136,12 @@ public class IncomingCallActivity extends Activity implements CallService.UiList
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
+        autoAnswer = intent.getBooleanExtra(EXTRA_AUTO_ANSWER, false);
         if (service != null) {
             info = service.getIncomingInfo();
             render();
+            if (autoAnswer) answer();
         }
     }
 

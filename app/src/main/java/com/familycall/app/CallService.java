@@ -693,8 +693,14 @@ public final class CallService extends Service implements CallSession.Listener,
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent fullPi = PendingIntent.getActivity(this, 10, full, pendingFlags());
 
-        Intent answer = new Intent(this, CallService.class).setAction(ACTION_ANSWER);
-        PendingIntent answerPi = PendingIntent.getService(this, 11, answer, pendingFlags());
+        // Use an activity PendingIntent, not a service action. Android 10+
+        // blocks background activity launches from a service; a notification
+        // action is allowed to bring the UI forward and auto-answer there.
+        Intent answer = new Intent(this, IncomingCallActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                .putExtra(IncomingCallActivity.EXTRA_AUTO_ANSWER, true);
+        PendingIntent answerPi = PendingIntent.getActivity(this, 11, answer, pendingFlags());
         Intent decline = new Intent(this, CallService.class).setAction(ACTION_DECLINE);
         PendingIntent declinePi = PendingIntent.getService(this, 12, decline, pendingFlags());
 

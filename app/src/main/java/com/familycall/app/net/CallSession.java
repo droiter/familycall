@@ -336,6 +336,8 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
     public void answer() {
         if (role != Role.CALLEE || stage != CallSnapshot.Stage.RINGING || ended.get()) return;
         try {
+            Log.d(TAG, "answer start stage=" + stage + " control=" + (control != null)
+                    + " media=" + (media != null));
             cancelRingTimeout();
             JSONObject accept = new JSONObject();
             accept.put("t", "accept");
@@ -346,13 +348,17 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
             accept.put("resume", false);
             accept.put("rot", cameraRotation);
             accept.put("mirror", false);
-            control.send(accept);
+            boolean sent = control.send(accept);
+            Log.d(TAG, "answer accept queued=" + sent);
             acceptedAtMs = System.currentTimeMillis();
             startedAtMs = acceptedAtMs;
-            startMedia();
             setStage(CallSnapshot.Stage.ACTIVE, "通话中");
-            if (media != null) media.requestKeyFrame();
+            Thread mediaThread = new Thread(this::startMedia, "callee-media");
+            mediaThread.setDaemon(true);
+            mediaThread.start();
+            Log.d(TAG, "answer complete");
         } catch (Exception e) {
+            Log.e(TAG, "answer failed", e);
             finish(CallSnapshot.Stage.FAILED, "接听失败");
         }
     }
@@ -403,6 +409,8 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
         int fps = quality[2];
         int start = quality[3];
         int max = quality[4];
+        Log.i(TAG, "startMedia " + width + "x" + height + " @" + fps + " localPort=" + localPort
+                + " peer=" + peerHost + ":" + (peerMediaPort > 0 ? peerMediaPort : peerPort));
         try {
             InetSocketAddress peer = new InetSocketAddress(peerHost,
                     peerMediaPort > 0 ? peerMediaPort : peerPort);
@@ -413,11 +421,14 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
             if (previewTexture != null) media.attachPreview(previewTexture);
             if (remoteSurface != null) media.attachRemote(remoteSurface);
             if (!media.start()) {
+                Log.e(TAG, "MediaEngine.start returned false");
                 media = null;
                 return;
             }
             media.setMuted(muted);
             media.setSpeaker(speakerOn);
+            media.requestKeyFrame();
+            Log.i(TAG, "media started");
         } catch (Exception e) {
             Log.e(TAG, "start media", e);
             finish(CallSnapshot.Stage.FAILED, "无法启动媒体传输");

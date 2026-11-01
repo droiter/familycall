@@ -12,14 +12,19 @@ import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Newline-delimited JSON control channel over a direct TCP connection.
- * The heartbeat doubles as an RTT probe (2 s interval, 10 s timeout).
+ * All writes happen on a writer thread, so callers on the UI thread never
+ * violate Android's NetworkOnMainThread policy. The heartbeat doubles as an
+ * RTT probe (2 s interval, 10 s timeout).
  */
 public final class ControlLink {
     private static final String TAG = "ControlLink";
+    private static final String POISON = "\u0000__close__";
 
     public interface Listener {
         void onControlMessage(ControlLink link, JSONObject message);
@@ -30,12 +35,15 @@ public final class ControlLink {
     private final Socket socket;
     private final Listener listener;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private volatile BufferedWriter writer;
+    private final BlockingQueue<String> outbox = new LinkedBlockingQueue<>();
     private volatile BufferedReader reader;
+    private volatile BufferedWriter writer;
     private volatile long lastReceiveMs;
     private volatile int rttMs;
+    private volatile boolean closing;
     private Thread readerThread;
     private Thread heartbeatThread;
+    private Thread writerThread;
 
     public ControlLink(Socket socket, Listener listener) {
         this.socket = socket;
@@ -63,6 +71,9 @@ public final class ControlLink {
             closeInternal("控制连接不可用");
             return;
         }
+        writerThread = new Thread(this::writeLoop, "control-writer");
+        writerThread.setDaemon(true);
+        writerThread.start();
         readerThread = new Thread(this::readLoop, "control-reader");
         readerThread.setDaemon(true);
         readerThread.start();
@@ -71,20 +82,35 @@ public final class ControlLink {
         heartbeatThread.start();
     }
 
+    /** Queues a message; the actual socket write happens on the writer thread. */
     public boolean send(JSONObject message) {
-        if (closed.get()) return false;
-        final String line = message.toString();
-        synchronized (this) {
-            try {
-                if (writer == null) return false;
-                writer.write(line);
-                writer.write('\n');
-                writer.flush();
-                return true;
-            } catch (IOException e) {
-                closeInternal("控制连接已断开");
-                return false;
+        if (closed.get() || closing) return false;
+        try {
+            outbox.offer(message.toString());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void writeLoop() {
+        try {
+            while (!closed.get()) {
+                String line = outbox.take();
+                if (POISON.equals(line)) {
+                    return;
+                }
+                BufferedWriter w = writer;
+                if (w == null) return;
+                w.write(line);
+                w.write('\n');
+                w.flush();
             }
+        } catch (InterruptedException ignored) {
+        } catch (IOException e) {
+            closeInternal("控制连接写入失败");
+        } catch (Exception e) {
+            closeInternal("控制连接异常");
         }
     }
 
@@ -149,12 +175,32 @@ public final class ControlLink {
         }
     }
 
+    /** Graceful close: lets already queued messages (e.g. BYE) reach the socket. */
     public void close(String reason) {
-        closeInternal(reason);
+        if (closed.get() || closing) return;
+        closing = true;
+        outbox.offer(POISON);
+        Thread wt = writerThread;
+        if (wt == null) {
+            closeInternal(reason);
+            return;
+        }
+        Thread closer = new Thread(() -> {
+            try {
+                wt.join(600);
+            } catch (InterruptedException ignored) {
+            }
+            closeInternal(reason);
+        }, "control-close");
+        closer.setDaemon(true);
+        closer.start();
     }
 
     private void closeInternal(String reason) {
         if (!closed.compareAndSet(false, true)) return;
+        closing = true;
+        Thread wt = writerThread;
+        if (wt != null) wt.interrupt();
         try {
             socket.close();
         } catch (Exception ignored) {
