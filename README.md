@@ -2,7 +2,7 @@
 
 一款 Android 端、**不依赖服务器**的点对点视频通话应用。双方各自配置本机端口和对方 IP/端口后即可直接呼叫，适合家庭局域网、已做端口映射的公网 IP、IPv6 或 VPN 组网。
 
-> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.2.apk`。
+> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.3.apk`。
 
 ---
 
@@ -26,7 +26,7 @@
 ### 安装
 
 ```bash
-adb install -r dist/FamilyCall-1.0.2.apk
+adb install -r dist/FamilyCall-1.0.3.apk
 ```
 
 或把 APK 发送到手机点击安装（需允许“安装未知来源应用”）。
@@ -82,7 +82,7 @@ GRADLE_USER_HOME=/workspace/termux/.gradle-home \
 输出：
 - `app/build/outputs/apk/debug/app-debug.apk`
 - `app/build/outputs/apk/release/app-release.apk`
-- `dist/FamilyCall-1.0.2.apk`（release 复制件）
+- `dist/FamilyCall-1.0.3.apk`（release 复制件）
 
 > Release 演示包使用 Android 默认 debug keystore 签名，仅用于安装测试。正式发布请替换为自己的 keystore。
 
@@ -222,7 +222,7 @@ docs/ARCHITECTURE.md               更详细的实现说明
 
 ## 10. 修复记录
 
-- **v1.0.2**
+- **v1.0.3**
   - 修复接听时在主线程向 TCP 控制连接写 `ACCEPT` 导致 `NetworkOnMainThreadException`、随后显示“接听失败”的问题；所有控制信令改为专用写线程异步发送。
   - 接听后的媒体初始化移到后台线程，避免主线程创建 UDP/音频资源造成卡顿。
   - 通知栏“接听”按钮改为 Activity PendingIntent + 自动接听，避免 App 在后台时被 Android 后台启动限制拦截，确保接听后能打开全屏通话页。

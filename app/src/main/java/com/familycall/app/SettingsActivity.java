@@ -67,6 +67,7 @@ public class SettingsActivity extends Activity {
         addressText = findViewById(R.id.addressText);
         serviceText = findViewById(R.id.serviceText);
         networkText = findViewById(R.id.networkText);
+        ((TextView) findViewById(R.id.versionText)).setText("亲情视频 v" + BuildConfig.VERSION_NAME);
 
         nameInput.setText(prefs.getName());
         portInput.setText(String.valueOf(prefs.getLocalPort()));

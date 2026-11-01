@@ -24,6 +24,7 @@ import android.widget.TextView;
 
 import com.familycall.app.data.CallSnapshot;
 import com.familycall.app.data.CallStats;
+import com.familycall.app.data.Prefs;
 import com.familycall.app.ui.UiUtils;
 
 public class CallActivity extends Activity implements CallService.UiListener {
@@ -34,6 +35,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
     private String callId;
     private boolean endingScheduled;
     private boolean statsVisible;
+    private Prefs prefs;
     private int lastPeerW = -1, lastPeerH = -1, lastPeerRot = -1;
     private boolean lastPeerMirror;
     private int lastLocalW = -1, lastLocalH = -1;
@@ -105,6 +107,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setVolumeControlStream(android.media.AudioManager.STREAM_VOICE_CALL);
+        prefs = new Prefs(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                 | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                 | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
@@ -236,6 +239,7 @@ public class CallActivity extends Activity implements CallService.UiListener {
             if (service != null) service.cancelOutgoing();
             finish();
         });
+        localPreviewContainer.setOnClickListener(v -> rotateLocalPreview());
     }
 
     private void attachSurfaces() {
@@ -403,7 +407,8 @@ public class CallActivity extends Activity implements CallService.UiListener {
         }
         int vw = snapshot.localWidth > 0 ? snapshot.localWidth : 640;
         int vh = snapshot.localHeight > 0 ? snapshot.localHeight : 480;
-        int rot = snapshot.localRotation;
+        int offset = effectivePreviewOffset();
+        int rot = ((snapshot.localRotation + offset) % 360 + 360) % 360;
         boolean mirror = snapshot.localMirror;
         if (vw == lastLocalW && vh == lastLocalH && rot == lastLocalRot && mirror == lastLocalMirror) return;
         lastLocalW = vw;
@@ -411,6 +416,33 @@ public class CallActivity extends Activity implements CallService.UiListener {
         lastLocalRot = rot;
         lastLocalMirror = mirror;
         UiUtils.layoutRotatedTexture(localVideo, w, h, vw, vh, rot, mirror);
+    }
+
+    private int effectivePreviewOffset() {
+        if (snapshot == null || !snapshot.localMirror) return 0;
+        int saved = prefs == null ? -1 : prefs.getPreviewOffset();
+        if (saved >= 0) return saved;
+        // Some phones report a front-camera/sensor orientation that leaves the
+        // self-view 90 degrees sideways. Use a phone-only automatic +90
+        // correction; the local preview can still be tapped to cycle it.
+        return isPhone() ? 90 : 0;
+    }
+
+    private boolean isPhone() {
+        return getResources().getConfiguration().smallestScreenWidthDp < 600;
+    }
+
+    private void rotateLocalPreview() {
+        if (childMode || snapshot == null) return;
+        if (!snapshot.localMirror) {
+            UiUtils.toast(this, "后置摄像头使用自动方向，无需校正");
+            return;
+        }
+        int next = (effectivePreviewOffset() + 90) % 360;
+        prefs.setPreviewOffset(next);
+        lastLocalRot = -1;
+        applyLocalTransform();
+        UiUtils.toast(this, "本机预览已旋转 " + next + "°");
     }
 
     private void applyChildMode() {

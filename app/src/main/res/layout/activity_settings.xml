@@ -306,6 +306,15 @@
                 android:textColor="@color/ink_muted"
                 android:textSize="11sp" />
 
+            <TextView
+                android:id="@+id/versionText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:textColor="#A6B1C2"
+                android:textSize="11sp" />
+
             <Button
                 android:id="@+id/saveButton"
                 style="@style/Widget.FamilyCall.PrimaryButton"

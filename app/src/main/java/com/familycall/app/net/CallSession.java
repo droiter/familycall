@@ -539,6 +539,7 @@ public final class CallSession implements ControlLink.Listener, MediaEngine.List
             case "video":
                 peerRotation = ((message.optInt("rot", 0) % 360) + 360) % 360;
                 peerMirror = message.optBoolean("mirror", false);
+                Log.i(TAG, "peer video rotation=" + peerRotation + " mirror=" + peerMirror);
                 listener.onSessionPeerVideo(this, peerRotation, peerMirror);
                 break;
             case "tcpMedia":

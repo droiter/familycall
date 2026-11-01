@@ -20,6 +20,7 @@ public final class Prefs {
     private static final String KEY_QUALITY = "quality";
     private static final String KEY_CONTACTS = "contacts";
     private static final String KEY_SPEAKER = "speaker";
+    private static final String KEY_PREVIEW_OFFSET = "preview_offset";
 
     public static final int QUALITY_AUTO = 0;
     public static final int QUALITY_SMOOTH = 1;
@@ -83,6 +84,15 @@ public final class Prefs {
 
     public void setSpeakerOn(boolean on) {
         sp.edit().putBoolean(KEY_SPEAKER, on).apply();
+    }
+
+    /** -1 means automatic; otherwise an explicit 0/90/180/270 correction. */
+    public int getPreviewOffset() {
+        return sp.getInt(KEY_PREVIEW_OFFSET, -1);
+    }
+
+    public void setPreviewOffset(int degrees) {
+        sp.edit().putInt(KEY_PREVIEW_OFFSET, ((degrees % 360) + 360) % 360).apply();
     }
 
     public List<Contact> getContacts() {
