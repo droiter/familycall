@@ -1,4 +1,4 @@
-13e982edf2d7172928d7c717c76a0303eecf8d68fbab4e71d90fc6aca9d8dd1b  dist/FamilyCall-1.0.5.apk
-8c37f3df2bc2348cb5073137db6878e3441b1212338a43505e105f0d5baee6ad  dist/FamilyCall-1.0.5-debug.apk
-018054d27526d1669c4563ddd044ea0434f3914f12bafeb3a39d066e9e3533f1  dist/FamilyCall-1.0.5-source.zip
-13e982edf2d7172928d7c717c76a0303eecf8d68fbab4e71d90fc6aca9d8dd1b  dist/familycall-1.0.5-arm64.apk
+20cc97110d776cdfb07cea038fc1b875ae1a7c7c8560085a25da491249e5beb6  dist/FamilyCall-1.0.6.apk
+401d3d4432d088167c65c5ef20bd29291bdd49967fd7e802a84e94fa6905b85a  dist/FamilyCall-1.0.6-debug.apk
+63f578f853e7b0d512e740395b8dc8941585373c1a41c3b1ee17065d0be0700c  dist/FamilyCall-1.0.6-source.zip
+20cc97110d776cdfb07cea038fc1b875ae1a7c7c8560085a25da491249e5beb6  dist/familycall-1.0.6-arm64.apk

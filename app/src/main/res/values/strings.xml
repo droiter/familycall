@@ -99,4 +99,7 @@
     <string name="fsi_disabled">未允许，锁屏时可能只显示通知</string>
     <string name="fsi_unsupported">当前 Android 版本无需单独授权</string>
     <string name="fsi_open_settings">打开系统设置</string>
+    <string name="alert_notifications">通知权限未开启，锁屏/后台时无法显示来电接听按钮。点此允许通知。</string>
+    <string name="alert_fsi">锁屏接听未完全开启：未允许“全屏通知”时，锁屏来电不会自动弹出接听页面。点此允许。</string>
+    <string name="fsi_status_no_notifications">通知权限未开启，来电通知不会显示，请先在系统设置中允许通知。</string>
 </resources>

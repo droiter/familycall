@@ -40,6 +40,7 @@ public class SettingsActivity extends Activity {
     private TextView networkText;
     private LinearLayout fsiCard;
     private TextView fsiStatus;
+    private android.widget.Button fsiButton;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -74,8 +75,8 @@ public class SettingsActivity extends Activity {
         networkText = findViewById(R.id.networkText);
         fsiCard = findViewById(R.id.fsiCard);
         fsiStatus = findViewById(R.id.fsiStatus);
+        fsiButton = findViewById(R.id.fsiButton);
         ((TextView) findViewById(R.id.versionText)).setText("亲情视频 v" + BuildConfig.VERSION_NAME);
-        findViewById(R.id.fsiButton).setOnClickListener(v -> UiUtils.openFullScreenIntentSettings(this));
 
         nameInput.setText(prefs.getName());
         portInput.setText(String.valueOf(prefs.getLocalPort()));
@@ -105,14 +106,22 @@ public class SettingsActivity extends Activity {
     }
 
     private void renderFsi() {
-        if (Build.VERSION.SDK_INT < 34) {
+        boolean notif = UiUtils.notificationsEnabled(this);
+        if (Build.VERSION.SDK_INT < 34 && notif) {
             fsiCard.setVisibility(View.GONE);
             return;
         }
         fsiCard.setVisibility(View.VISIBLE);
+        if (!notif) {
+            fsiStatus.setText(R.string.fsi_status_no_notifications);
+            fsiStatus.setTextColor(getColor(R.color.danger));
+            fsiButton.setOnClickListener(v -> UiUtils.openNotificationSettings(this));
+            return;
+        }
         boolean allowed = UiUtils.canUseFullScreenIntent(this);
         fsiStatus.setText(allowed ? R.string.fsi_enabled : R.string.fsi_disabled);
         fsiStatus.setTextColor(getColor(allowed ? R.color.green_dark : R.color.danger));
+        fsiButton.setOnClickListener(v -> UiUtils.openFullScreenIntentSettings(this));
     }
 
     @Override

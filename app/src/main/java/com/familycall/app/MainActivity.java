@@ -36,6 +36,7 @@ public class MainActivity extends Activity implements CallService.UiListener {
     private CallService service;
     private boolean bound;
     private boolean permissionDialogShown;
+    private boolean fsiDialogShown;
 
     private TextView appTitle;
     private TextView subtitle;
@@ -56,6 +57,7 @@ public class MainActivity extends Activity implements CallService.UiListener {
     private LinearLayout directCard;
     private TextView localInfo;
     private TextView childHint;
+    private TextView alertBanner;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -107,6 +109,14 @@ public class MainActivity extends Activity implements CallService.UiListener {
         directCard = findViewById(R.id.directCard);
         localInfo = findViewById(R.id.localInfo);
         childHint = findViewById(R.id.childHint);
+        alertBanner = findViewById(R.id.alertBanner);
+        alertBanner.setOnClickListener(v -> {
+            if (!UiUtils.notificationsEnabled(this)) {
+                UiUtils.openNotificationSettings(this);
+            } else {
+                UiUtils.openFullScreenIntentSettings(this);
+            }
+        });
     }
 
     private void bindActions() {
@@ -157,8 +167,8 @@ public class MainActivity extends Activity implements CallService.UiListener {
     private void maybePromptFullScreenIntent() {
         if (Build.VERSION.SDK_INT < 34) return;
         if (UiUtils.canUseFullScreenIntent(this)) return;
-        if (prefs.isFullScreenPromptShown()) return;
-        prefs.setFullScreenPromptShown(true);
+        if (fsiDialogShown) return;
+        fsiDialogShown = true;
         new AlertDialog.Builder(this)
                 .setTitle(R.string.fsi_title)
                 .setMessage(R.string.fsi_message)
@@ -199,6 +209,7 @@ public class MainActivity extends Activity implements CallService.UiListener {
         if (Build.VERSION.SDK_INT >= 33 && !hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
             UiUtils.toastLong(this, getString(R.string.notification_permission));
         }
+        updateAlerts();
     }
 
     private boolean hasPermission(String permission) {
@@ -221,10 +232,24 @@ public class MainActivity extends Activity implements CallService.UiListener {
                 .show();
     }
 
+    private void updateAlerts() {
+        if (alertBanner == null) return;
+        if (!UiUtils.notificationsEnabled(this)) {
+            alertBanner.setText(R.string.alert_notifications);
+            alertBanner.setVisibility(View.VISIBLE);
+        } else if (Build.VERSION.SDK_INT >= 34 && !UiUtils.canUseFullScreenIntent(this)) {
+            alertBanner.setText(R.string.alert_fsi);
+            alertBanner.setVisibility(View.VISIBLE);
+        } else {
+            alertBanner.setVisibility(View.GONE);
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
         prefs = new Prefs(this);
+        updateAlerts();
         renderAll(null);
         if (bound && service != null) {
             renderServiceStatus(service.getSnapshot());

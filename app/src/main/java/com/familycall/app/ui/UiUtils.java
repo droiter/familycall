@@ -164,6 +164,31 @@ public final class UiUtils {
         }
     }
 
+    public static boolean notificationsEnabled(Context context) {
+        try {
+            NotificationManager nm = (NotificationManager)
+                    context.getSystemService(Context.NOTIFICATION_SERVICE);
+            return nm == null || nm.areNotificationsEnabled();
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    public static void openNotificationSettings(Activity activity) {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName());
+        try {
+            activity.startActivity(intent);
+        } catch (Exception e) {
+            try {
+                activity.startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + activity.getPackageName())));
+            } catch (Exception ignored) {
+                toast(activity, "无法打开系统设置");
+            }
+        }
+    }
+
     public static void openFullScreenIntentSettings(Activity activity) {
         Intent intent;
         if (Build.VERSION.SDK_INT >= 34) {

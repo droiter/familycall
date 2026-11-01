@@ -2,7 +2,7 @@
 
 一款 Android 端、**不依赖服务器**的点对点视频通话应用。双方各自配置本机端口和对方 IP/端口后即可直接呼叫，适合家庭局域网、已做端口映射的公网 IP、IPv6 或 VPN 组网。
 
-> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.5.apk`。
+> 本目录是完整可编译工程。已生成可安装 APK：`dist/FamilyCall-1.0.6.apk`。
 
 ---
 
@@ -26,7 +26,7 @@
 ### 安装
 
 ```bash
-adb install -r dist/FamilyCall-1.0.5.apk
+adb install -r dist/FamilyCall-1.0.6.apk
 ```
 
 或把 APK 发送到手机点击安装（需允许“安装未知来源应用”）。
@@ -82,7 +82,7 @@ GRADLE_USER_HOME=/workspace/termux/.gradle-home \
 输出：
 - `app/build/outputs/apk/debug/app-debug.apk`
 - `app/build/outputs/apk/release/app-release.apk`
-- `dist/FamilyCall-1.0.5.apk`（release 复制件）
+- `dist/FamilyCall-1.0.6.apk`（release 复制件）
 
 > Release 演示包使用 Android 默认 debug keystore 签名，仅用于安装测试。正式发布请替换为自己的 keystore。
 
@@ -222,6 +222,11 @@ docs/ARCHITECTURE.md               更详细的实现说明
 
 ## 10. 修复记录
 
+- **v1.0.6**
+  - 来电通知改用系统 `CallStyle`（Android 12+）：在折叠状态和锁屏上也直接显示“接听/拒接”两个大按钮，并标记为视频通话；旧系统仍使用普通通知按钮。
+  - 未授予“全屏通知”权限时，服务在息屏来电时申请短时 `FULL_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP` 点亮屏幕，让锁屏上的来电通知可见可点，尽量做到无需该权限也能接听。
+  - 未授予“全屏通知”或通知权限时，首页顶部显示红色提醒条，设置页状态卡也会提示，并可直接跳转对应系统设置；全屏通知引导改为每次启动未授权都提醒（不再只弹一次）。
+  - 来电通知补日志（是否 CallStyle、是否可用全屏通知），便于排查不同厂商 ROM 的锁屏行为。
 - **v1.0.5**
   - 修复接听时在主线程向 TCP 控制连接写 `ACCEPT` 导致 `NetworkOnMainThreadException`、随后显示“接听失败”的问题；所有控制信令改为专用写线程异步发送。
   - 接听后的媒体初始化移到后台线程，避免主线程创建 UDP/音频资源造成卡顿。

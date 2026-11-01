@@ -5,6 +5,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.Person;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -22,6 +23,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.util.Log;
@@ -34,6 +36,7 @@ import com.familycall.app.data.Prefs;
 import com.familycall.app.net.CallSession;
 import com.familycall.app.net.InboundListener;
 import com.familycall.app.net.Protocol;
+import com.familycall.app.ui.UiUtils;
 
 import org.json.JSONObject;
 
@@ -86,6 +89,7 @@ public final class CallService extends Service implements CallSession.Listener,
     private boolean listening;
     private boolean foreground;
     private Ringtone ringtone;
+    private PowerManager.WakeLock screenWakeLock;
     private Vibrator vibrator;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -455,6 +459,7 @@ public final class CallService extends Service implements CallSession.Listener,
             emitIncoming(incomingInfo);
             showIncomingNotification(incomingInfo);
             startRinging();
+            wakeScreenForIncoming();
             startActivity(new Intent(this, IncomingCallActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP));
         } catch (Exception e) {
@@ -708,28 +713,44 @@ public final class CallService extends Service implements CallSession.Listener,
         Intent decline = new Intent(this, CallService.class).setAction(ACTION_DECLINE);
         PendingIntent declinePi = PendingIntent.getService(this, 12, decline, pendingFlags());
 
+        boolean fsi = UiUtils.canUseFullScreenIntent(this);
+        String peer = info.peerName == null || info.peerName.isEmpty() ? "对方" : info.peerName;
+
         Notification.Builder b = baseBuilder(CHANNEL_INCOMING)
                 .setSmallIcon(R.drawable.ic_stat_call)
                 .setContentTitle("视频来电")
-                .setContentText(info.peerName + " 邀请你视频通话")
+                .setContentText(peer + " 邀请你视频通话")
                 .setContentIntent(fullPi)
                 .setFullScreenIntent(fullPi, true)
                 .setCategory(Notification.CATEGORY_CALL)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setPriority(Notification.PRIORITY_MAX)
                 .setOngoing(true)
-                .setAutoCancel(false)
-                .addAction(new Notification.Action.Builder(
-                        android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_call),
-                        "接听", answerPi).build())
-                .addAction(new Notification.Action.Builder(
-                        android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_call_end),
-                        "拒绝", declinePi).build());
+                .setAutoCancel(false);
+        if (Build.VERSION.SDK_INT >= 31) {
+            // CallStyle keeps the 接听/拒接 buttons visible in the collapsed
+            // notification (also on the lock screen) instead of hiding them
+            // behind an expansion, and renders a proper call card.
+            Person person = new Person.Builder().setName(peer).setImportant(true).build();
+            b.setStyle(Notification.CallStyle.forIncomingCall(person, declinePi, answerPi)
+                    .setIsVideo(true));
+        } else {
+            b.addAction(new Notification.Action.Builder(
+                    android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_call),
+                    "接听", answerPi).build())
+                    .addAction(new Notification.Action.Builder(
+                            android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_call_end),
+                            "拒绝", declinePi).build());
+        }
+        if (!fsi) b.setSubText("锁屏：下拉通知栏后点“接听”");
         if (Build.VERSION.SDK_INT >= 26) b.setTimeoutAfter(50000);
         try {
             ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
                     .notify(NOTIF_INCOMING, b.build());
-        } catch (Exception ignored) {
+            Log.i(TAG, "incoming notification posted callStyle=" + (Build.VERSION.SDK_INT >= 31)
+                    + " canUseFullScreenIntent=" + fsi);
+        } catch (Exception e) {
+            Log.e(TAG, "post incoming notification failed", e);
         }
     }
 
@@ -741,6 +762,40 @@ public final class CallService extends Service implements CallSession.Listener,
         try {
             ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(NOTIF_INCOMING);
         } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * When the user has not granted the Android 14+ full-screen-intent
+     * permission we cannot launch the incoming activity from the background.
+     * At least turn the screen on so the call notification (with its answer
+     * button) is visible on the lock screen.
+     */
+    @SuppressWarnings("deprecation")
+    private void wakeScreenForIncoming() {
+        if (UiUtils.canUseFullScreenIntent(this)) return;
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm == null || pm.isInteractive()) return;
+            if (screenWakeLock == null) {
+                screenWakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK
+                        | PowerManager.ACQUIRE_CAUSES_WAKEUP
+                        | PowerManager.ON_AFTER_RELEASE, "FamilyCall:incomingScreen");
+                screenWakeLock.setReferenceCounted(false);
+            }
+            screenWakeLock.acquire(20000);
+            Log.i(TAG, "woke screen for incoming call (no full-screen intent permission)");
+        } catch (Exception e) {
+            Log.w(TAG, "wake screen for incoming failed", e);
+        }
+    }
+
+    private void releaseScreenWake() {
+        if (screenWakeLock != null) {
+            try {
+                if (screenWakeLock.isHeld()) screenWakeLock.release();
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -776,6 +831,7 @@ public final class CallService extends Service implements CallSession.Listener,
     }
 
     private void stopRinging() {
+        releaseScreenWake();
         if (ringtone != null) {
             try {
                 ringtone.stop();
